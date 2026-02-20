@@ -1,0 +1,7 @@
+{
+  "name": "Islamic Personal App",
+  "description": "A simple and minimal Islamic app for prayer times, Quran, and essential Duas.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
