@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppSection, PrayerData } from './types';
-import { ESSENTIAL_DUAS, SAMPLE_QURAN } from './constants';
+import { ESSENTIAL_DUAS, SAMPLE_QURAN, RAMADAN_DATA } from './constants';
 
 // Helper to convert English numbers to Bengali
 const toBengaliNumber = (num: number | string): string => {
@@ -82,6 +82,70 @@ const App: React.FC = () => {
   const [nextPrayer, setNextPrayer] = useState<string>('');
 
   const [nextEvent, setNextEvent] = useState<{ name: string, time: string, timeLeft: string } | null>(null);
+
+  // Ramadan State
+  const [ramadanDay, setRamadanDay] = useState<number>(1);
+  const [salahTracker, setSalahTracker] = useState<Record<string, { fard: boolean, sunnah: boolean }>>(() => {
+    const saved = localStorage.getItem('salahTracker');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [checklistTracker, setChecklistTracker] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('checklistTracker');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [showMoreSalah, setShowMoreSalah] = useState(false);
+  const [quranExpanded, setQuranExpanded] = useState(false);
+  const [checklistExpanded, setChecklistExpanded] = useState(false);
+  const [quranProgress, setQuranProgress] = useState<Record<string, { tilawat: string, meaning: string }>>(() => {
+    const saved = localStorage.getItem('quranProgress');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Persist Ramadan State
+  useEffect(() => {
+    localStorage.setItem('salahTracker', JSON.stringify(salahTracker));
+  }, [salahTracker]);
+
+  useEffect(() => {
+    localStorage.setItem('checklistTracker', JSON.stringify(checklistTracker));
+  }, [checklistTracker]);
+
+  useEffect(() => {
+    localStorage.setItem('quranProgress', JSON.stringify(quranProgress));
+  }, [quranProgress]);
+
+  const toggleSalah = (day: number, salah: string, type: 'fard' | 'sunnah') => {
+    const key = `${day}-${salah}`;
+    setSalahTracker(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key] || { fard: false, sunnah: false },
+        [type]: !prev[key]?.[type]
+      }
+    }));
+  };
+
+  const toggleChecklist = (day: number, item: string) => {
+    const key = `${day}-${item}`;
+    setChecklistTracker(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const updateQuranProgress = (day: number, type: 'tilawat' | 'meaning', value: string) => {
+    const key = day.toString();
+    setQuranProgress(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key] || { tilawat: '', meaning: '' },
+        [type]: value
+      }
+    }));
+  };
+
+  const currentRamadanData = RAMADAN_DATA[ramadanDay - 1] || RAMADAN_DATA[0];
 
   useEffect(() => {
     fetchPrayerTimes();
@@ -298,14 +362,16 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-slate-900 text-white shadow-xl relative overflow-hidden font-sans">
       
       {/* Location Header */}
-      <header className="bg-slate-900 p-4 pt-6 pb-2 flex items-center gap-2">
-        <i className="fa-solid fa-location-dot text-slate-400 text-xl"></i>
-        <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveSection(AppSection.SETTINGS)}>
-          <h1 className="text-2xl font-bold text-white">{city},</h1>
-          <span className="text-slate-400 text-lg">Bangladesh</span>
-          <i className="fa-solid fa-chevron-down text-slate-400 text-sm ml-1"></i>
-        </div>
-      </header>
+      {activeSection === AppSection.PRAYER && (
+        <header className="bg-slate-900 p-4 pt-6 pb-2 flex items-center gap-2">
+          <i className="fa-solid fa-location-dot text-slate-400 text-xl"></i>
+          <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveSection(AppSection.SETTINGS)}>
+            <h1 className="text-2xl font-bold text-white">{city},</h1>
+            <span className="text-slate-400 text-lg">Bangladesh</span>
+            <i className="fa-solid fa-chevron-down text-slate-400 text-sm ml-1"></i>
+          </div>
+        </header>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto pb-24">
@@ -447,6 +513,224 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {activeSection === AppSection.RAMADAN && (
+          <div className="animate-fade-in p-3 space-y-4 bg-slate-900 min-h-full text-white rounded-t-3xl">
+            {/* Ramadan Header */}
+            <div className="flex justify-between items-start border-b-2 border-emerald-800 pb-2">
+              <div className="bg-emerald-600 text-white px-4 py-1 rounded-r-full font-bold flex items-center gap-2">
+                <span className="text-xl">{toBengaliNumber(ramadanDay)}</span>
+                <span className="text-lg">রমাদান</span>
+                <div className="flex flex-col ml-2">
+                   <i className="fa-solid fa-chevron-up text-[10px] cursor-pointer" onClick={() => setRamadanDay(d => Math.min(30, d + 1))}></i>
+                   <i className="fa-solid fa-chevron-down text-[10px] cursor-pointer" onClick={() => setRamadanDay(d => Math.max(1, d - 1))}></i>
+                </div>
+              </div>
+              <div className="text-right">
+                <h2 className="text-xl font-serif font-bold text-slate-200 leading-tight">NOOR-UL-ILM</h2>
+                <p className="text-[10px] tracking-widest text-slate-400 font-bold">QURAN SCHOOL</p>
+              </div>
+            </div>
+
+            {/* Allah's Names Header */}
+            <div className="bg-emerald-900/20 rounded-2xl p-2 border border-emerald-800">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px]">الله</div>
+                <span className="font-bold text-xs text-slate-300">আল্লাহর নাম</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {currentRamadanData.names.map((name, idx) => (
+                  <div key={idx} className="space-y-0.5">
+                    <p className="font-arabic text-emerald-400 font-bold">{name.ar}</p>
+                    <p className="text-[8px] text-slate-500">{name.bn}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Verse & Hadith Row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-blue-900/20 p-3 rounded-2xl border border-blue-800 relative">
+                <h3 className="text-center bg-blue-900/50 text-blue-300 text-xs font-bold py-1 rounded-full mb-2">আজকের আয়াত</h3>
+                <p className="text-right text-lg font-arabic mb-2 leading-relaxed text-slate-200" dir="rtl">{currentRamadanData.ayah.arabic}</p>
+                <p className="text-[10px] text-slate-400 leading-tight">{currentRamadanData.ayah.bangla} ({currentRamadanData.ayah.ref})</p>
+              </div>
+              <div className="bg-orange-900/20 p-3 rounded-2xl border border-orange-800">
+                <h3 className="text-center bg-orange-900/50 text-orange-300 text-xs font-bold py-1 rounded-full mb-2">আজকের হাদীস</h3>
+                <p className="text-[10px] text-slate-300 leading-tight">{currentRamadanData.hadith.bangla} ({currentRamadanData.hadith.ref})</p>
+              </div>
+            </div>
+
+            {/* Trackers Section - Vertical Stack */}
+            <div className="space-y-4 mt-4">
+              
+              {/* Salah Tracker */}
+              <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 shadow-lg">
+                <div className="flex items-center gap-3 mb-4 border-b border-slate-700 pb-3">
+                  <div className="bg-emerald-500/10 p-2.5 rounded-xl text-emerald-500">
+                    <i className="fa-solid fa-mosque text-xl"></i>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-200">সালাত ট্র্যাকার</h3>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4 mb-2 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                  <div className="text-left pl-2">ওয়াক্ত</div>
+                  <div>ফরজ</div>
+                  <div>সুন্নাত</div>
+                </div>
+                
+                <div className="space-y-3">
+                  {['ফজর', 'যোহর', 'আসর', 'মাগরিব', 'এশা'].map(salah => {
+                    const key = `${ramadanDay}-${salah}`;
+                    const status = salahTracker[key] || { fard: false, sunnah: false };
+                    return (
+                      <div key={salah} className="grid grid-cols-3 gap-4 items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                        <span className="font-bold text-slate-300 pl-2">{salah}</span>
+                        <div className="flex justify-center">
+                          <div 
+                            onClick={() => toggleSalah(ramadanDay, salah, 'fard')}
+                            className={`w-8 h-8 rounded-lg cursor-pointer transition-all duration-300 flex items-center justify-center border-2 ${status.fard ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 border-slate-600 hover:border-emerald-500/50'}`}
+                          >
+                            {status.fard && <i className="fa-solid fa-check text-white text-sm"></i>}
+                          </div>
+                        </div>
+                        <div className="flex justify-center">
+                          <div 
+                            onClick={() => toggleSalah(ramadanDay, salah, 'sunnah')}
+                            className={`w-8 h-8 rounded-lg cursor-pointer transition-all duration-300 flex items-center justify-center border-2 ${status.sunnah ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 border-slate-600 hover:border-emerald-500/50'}`}
+                          >
+                            {status.sunnah && <i className="fa-solid fa-check text-white text-sm"></i>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {showMoreSalah && (
+                    <div className="space-y-3 animate-fade-in">
+                      {['তারাবীহ', 'তাহাজ্জুদ', 'ইশরাক'].map(salah => {
+                        const key = `${ramadanDay}-${salah}`;
+                        const status = salahTracker[key] || { fard: false, sunnah: false };
+                        return (
+                          <div key={salah} className="grid grid-cols-3 gap-4 items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                            <span className="font-bold text-slate-300 pl-2">{salah}</span>
+                            <div className="flex justify-center">
+                              <div 
+                                onClick={() => toggleSalah(ramadanDay, salah, 'fard')}
+                                className={`w-8 h-8 rounded-lg cursor-pointer transition-all duration-300 flex items-center justify-center border-2 ${status.fard ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 border-slate-600 hover:border-emerald-500/50'}`}
+                              >
+                                {status.fard && <i className="fa-solid fa-check text-white text-sm"></i>}
+                              </div>
+                            </div>
+                            <div className="flex justify-center">
+                              <div 
+                                onClick={() => toggleSalah(ramadanDay, salah, 'sunnah')}
+                                className={`w-8 h-8 rounded-lg cursor-pointer transition-all duration-300 flex items-center justify-center border-2 ${status.sunnah ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 border-slate-600 hover:border-emerald-500/50'}`}
+                              >
+                                {status.sunnah && <i className="fa-solid fa-check text-white text-sm"></i>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => setShowMoreSalah(!showMoreSalah)}
+                  className="w-full mt-4 text-xs text-slate-400 hover:text-white flex items-center justify-center gap-1 transition-colors py-2 rounded-lg hover:bg-slate-700/50"
+                >
+                  {showMoreSalah ? 'কম দেখান' : 'আরও দেখান'} <i className={`fa-solid fa-chevron-${showMoreSalah ? 'up' : 'down'}`}></i>
+                </button>
+              </div>
+
+              {/* Quran Tracker */}
+              <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-lg overflow-hidden">
+                <div 
+                  className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-700/50 transition-colors"
+                  onClick={() => setQuranExpanded(!quranExpanded)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="bg-orange-500/10 p-2.5 rounded-xl text-orange-500">
+                      <i className="fa-solid fa-book-open text-xl"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-200">কুরআন ট্র্যাকার</h3>
+                  </div>
+                  <i className={`fa-solid fa-chevron-${quranExpanded ? 'up' : 'down'} text-slate-400 transition-transform`}></i>
+                </div>
+
+                {quranExpanded && (
+                  <div className="p-5 pt-0 space-y-4 animate-fade-in border-t border-slate-700/50 mt-2">
+                     {/* Option 1 */}
+                     <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2">
+                        <label className="text-slate-300 font-bold text-sm">কোরআন তেলাওয়াত</label>
+                        <input 
+                          type="text" 
+                          placeholder="পরিমাণ (আয়াত/পৃষ্ঠা)" 
+                          value={quranProgress[ramadanDay.toString()]?.tilawat || ''}
+                          onChange={(e) => updateQuranProgress(ramadanDay, 'tilawat', e.target.value)}
+                          className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all placeholder-slate-500"
+                        />
+                     </div>
+                     
+                     {/* Option 2 */}
+                     <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2">
+                        <label className="text-slate-300 font-bold text-sm">অর্থসহ কোরআন তেলাওয়াত</label>
+                        <input 
+                          type="text" 
+                          placeholder="পরিমাণ (আয়াত/পৃষ্ঠা)" 
+                          value={quranProgress[ramadanDay.toString()]?.meaning || ''}
+                          onChange={(e) => updateQuranProgress(ramadanDay, 'meaning', e.target.value)}
+                          className="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all placeholder-slate-500"
+                        />
+                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Checklist */}
+              <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-lg overflow-hidden">
+                <div 
+                  className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-700/50 transition-colors"
+                  onClick={() => setChecklistExpanded(!checklistExpanded)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-500/10 p-2.5 rounded-xl text-blue-500">
+                      <i className="fa-solid fa-list-check text-xl"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-200">দৈনিক চেকলিস্ট</h3>
+                  </div>
+                  <i className={`fa-solid fa-chevron-${checklistExpanded ? 'up' : 'down'} text-slate-400 transition-transform`}></i>
+                </div>
+
+                {checklistExpanded && (
+                  <div className="p-5 pt-0 space-y-2 animate-fade-in border-t border-slate-700/50 mt-2">
+                    {[
+                      'সকাল সন্ধ্যার যিকির', 'সালাত শেষের যিকির', 'দুয়া করা, ক্ষমা প্রার্থনা করা',
+                      'কুরআন খতমের তিলাওয়াত', 'দান সাদাকা', 'প্রতি রাতের আমল'
+                    ].map(item => {
+                      const key = `${ramadanDay}-${item}`;
+                      const isChecked = checklistTracker[key] || false;
+                      return (
+                        <div 
+                          key={item} 
+                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${isChecked ? 'bg-blue-900/20 border-blue-800' : 'bg-slate-900/30 border-slate-800 hover:bg-slate-800'}`}
+                          onClick={() => toggleChecklist(ramadanDay, item)}
+                        >
+                          <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${isChecked ? 'bg-blue-500 border-blue-500' : 'border-slate-600'}`}>
+                            {isChecked && <i className="fa-solid fa-check text-white text-xs"></i>}
+                          </div>
+                          <span className={`text-sm ${isChecked ? 'text-slate-400 line-through' : 'text-slate-300'}`}>{item}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeSection === AppSection.QURAN && (
           <div className="animate-fade-in p-4">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -531,6 +815,13 @@ const App: React.FC = () => {
         >
           <i className="fa-solid fa-clock text-lg"></i>
           <span className="text-[10px] font-bold">নামাজ</span>
+        </button>
+        <button 
+          onClick={() => setActiveSection(AppSection.RAMADAN)}
+          className={`flex flex-col items-center gap-1 transition-colors ${activeSection === AppSection.RAMADAN ? 'text-emerald-500' : 'text-slate-500'}`}
+        >
+          <i className="fa-solid fa-moon text-lg"></i>
+          <span className="text-[10px] font-bold">রমাদান</span>
         </button>
         <button 
           onClick={() => setActiveSection(AppSection.QURAN)}

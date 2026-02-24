@@ -79,6 +79,7 @@ export interface Dua {
 
 export enum AppSection {
   PRAYER = 'prayer',
+  RAMADAN = 'ramadan',
   QURAN = 'quran',
   DUA = 'dua',
   SETTINGS = 'settings'
