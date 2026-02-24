@@ -60,6 +60,15 @@ const getBengaliDate = (date: Date) => {
   return { day: toBengaliNumber(bnDay), month: bnMonth, year: toBengaliNumber(bnYear) };
 };
 
+// Helper to add/subtract minutes from 24h time string
+const adjustTime = (timeStr: string, minutes: number): string => {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const date = new Date();
+  date.setHours(h, m + minutes);
+  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+};
+
 const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AppSection>(AppSection.PRAYER);
   const [prayerData, setPrayerData] = useState<PrayerData | null>(null);
@@ -71,6 +80,8 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
   const [activePrayer, setActivePrayer] = useState<string>('');
   const [nextPrayer, setNextPrayer] = useState<string>('');
+
+  const [nextEvent, setNextEvent] = useState<{ name: string, time: string, timeLeft: string } | null>(null);
 
   useEffect(() => {
     fetchPrayerTimes();
@@ -84,6 +95,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (prayerData) {
       calculateActivePrayer();
+      calculateNextEvent();
     }
   }, [currentTime, prayerData]);
 
@@ -185,9 +197,68 @@ const App: React.FC = () => {
     }
   };
 
+  const calculateNextEvent = () => {
+    if (!prayerData) return;
+    const timings = prayerData.timings;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    const timeToMinutes = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const fajr = timeToMinutes(timings.Fajr);
+    const maghrib = timeToMinutes(timings.Maghrib);
+
+    let targetTime = 0;
+    let eventName = '';
+    let isTomorrow = false;
+
+    if (currentMinutes < fajr) {
+      targetTime = fajr;
+      eventName = 'সাহরি';
+    } else if (currentMinutes < maghrib) {
+      targetTime = maghrib;
+      eventName = 'ইফতার';
+    } else {
+      targetTime = fajr;
+      eventName = 'সাহরি';
+      isTomorrow = true;
+    }
+
+    let remainingSeconds = 0;
+    if (isTomorrow) {
+      remainingSeconds = ((24 * 60) - currentMinutes + targetTime) * 60 - now.getSeconds();
+    } else {
+      remainingSeconds = (targetTime * 60) - (currentMinutes * 60 + now.getSeconds());
+    }
+
+    const h = Math.floor(remainingSeconds / 3600);
+    const m = Math.floor((remainingSeconds % 3600) / 60);
+    const s = remainingSeconds % 60;
+    
+    setNextEvent({
+      name: eventName,
+      time: isTomorrow ? timings.Fajr : (eventName === 'ইফতার' ? timings.Maghrib : timings.Fajr),
+      timeLeft: `${toBengaliNumber(h.toString().padStart(2, '0'))}:${toBengaliNumber(m.toString().padStart(2, '0'))}:${toBengaliNumber(s.toString().padStart(2, '0'))}`
+    });
+  };
+
   const checkNotification = () => {
     if (!notificationsEnabled || !prayerData) return;
-    // Notification logic placeholder
+    
+    const now = new Date();
+    const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
+    Object.entries(prayerData.timings).forEach(([name, time]) => {
+      if (time === currentTimeStr && now.getSeconds() === 0) {
+        new Notification("নামাজের সময় হয়েছে", {
+          body: `এখন ${name} ওয়াক্তের সময়।`,
+          icon: '/icon.png' // Assuming an icon exists or browser default
+        });
+      }
+    });
   };
 
   const toggleNotifications = () => {
@@ -226,12 +297,22 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-slate-900 text-white shadow-xl relative overflow-hidden font-sans">
       
+      {/* Location Header */}
+      <header className="bg-slate-900 p-4 pt-6 pb-2 flex items-center gap-2">
+        <i className="fa-solid fa-location-dot text-slate-400 text-xl"></i>
+        <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveSection(AppSection.SETTINGS)}>
+          <h1 className="text-2xl font-bold text-white">{city},</h1>
+          <span className="text-slate-400 text-lg">Bangladesh</span>
+          <i className="fa-solid fa-chevron-down text-slate-400 text-sm ml-1"></i>
+        </div>
+      </header>
+
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto pb-24">
         {activeSection === AppSection.PRAYER && (
           <div className="animate-fade-in space-y-3 p-3">
             
-            {/* Top Header Card */}
+            {/* Top Date & Sun Card */}
             <div className="bg-emerald-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
                <div className="flex justify-between items-center relative z-10">
                  <div>
@@ -305,7 +386,7 @@ const App: React.FC = () => {
                     );
                   })}
                   <div className="text-right text-xs text-slate-400 mt-2">
-                    মাকরূহ: রাত ১১:৪০ (আনুমানিক)
+                    মাকরূহ: {prayerData ? formatTime(prayerData.timings.Midnight) : '--:--'} (আনুমানিক)
                   </div>
                 </div>
               </div>
@@ -319,19 +400,48 @@ const App: React.FC = () => {
                <div className="flex justify-between items-center text-center divide-x divide-slate-700">
                  <div className="px-2 flex-1">
                    <h3 className="text-2xl font-bold text-white mb-1">{prayerData ? formatTime(prayerData.timings.Fajr) : '--:--'}</h3>
-                   <p className="text-xs text-slate-400 mb-2">পরবর্তী সাহরি</p>
+                   <p className="text-xs text-slate-400 mb-2">সাহরি শেষ</p>
                    <button className="text-emerald-500 text-xs border border-emerald-500/30 px-3 py-1 rounded-full hover:bg-emerald-500/10">অ্যালার্ম</button>
                  </div>
                  <div className="px-2 flex-1">
                    <h3 className="text-2xl font-bold text-white mb-1">{prayerData ? formatTime(prayerData.timings.Maghrib) : '--:--'}</h3>
-                   <p className="text-xs text-slate-400 mb-2">পরবর্তী ইফতার</p>
+                   <p className="text-xs text-slate-400 mb-2">ইফতার শুরু</p>
                    <button className="text-emerald-500 text-xs border border-emerald-500/30 px-3 py-1 rounded-full hover:bg-emerald-500/10">অ্যালার্ম</button>
                  </div>
                  <div className="px-2 flex-1">
-                   <h3 className="text-2xl font-bold text-white mb-1">০২:৪১:১৩</h3>
-                   <p className="text-xs text-slate-400">ইফতারের বাকি</p>
+                   <h3 className="text-2xl font-bold text-white mb-1">{nextEvent ? nextEvent.timeLeft : '--:--:--'}</h3>
+                   <p className="text-xs text-slate-400">{nextEvent ? `${nextEvent.name}র বাকি` : 'সময় বাকি'}</p>
                  </div>
                </div>
+            </div>
+
+            {/* Forbidden Times Card */}
+            <div className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700">
+              <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-3">
+                <h2 className="text-xl font-bold text-slate-200">সালাতের নিষিদ্ধ সময়</h2>
+                <i className="fa-solid fa-circle-info text-slate-400"></i>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xl font-medium text-slate-300">সকাল:</span>
+                  <span className="text-xl font-bold text-slate-200 font-mono">
+                    {prayerData ? `${formatTime(prayerData.timings.Sunrise)} - ${formatTime(adjustTime(prayerData.timings.Sunrise, 15))}` : '--:--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xl font-medium text-slate-300">দুপুর:</span>
+                  <span className="text-xl font-bold text-slate-200 font-mono">
+                     {prayerData ? `${formatTime(adjustTime(prayerData.timings.Dhuhr, -7))} - ${formatTime(adjustTime(prayerData.timings.Dhuhr, -1))}` : '--:--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xl font-medium text-slate-300">সন্ধ্যা:</span>
+                  <span className="text-xl font-bold text-slate-200 font-mono">
+                     {prayerData ? `${formatTime(adjustTime(prayerData.timings.Sunset, -16))} - ${formatTime(prayerData.timings.Sunset)}` : '--:--'}
+                  </span>
+                </div>
+              </div>
             </div>
 
           </div>
