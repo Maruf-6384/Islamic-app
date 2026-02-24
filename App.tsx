@@ -379,33 +379,66 @@ const App: React.FC = () => {
           <div className="animate-fade-in space-y-3 p-3">
             
             {/* Top Date & Sun Card */}
-            <div className="bg-emerald-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
-               <div className="flex justify-between items-center relative z-10">
-                 <div>
-                   <h2 className="text-xl font-bold">{hijriDate ? `${toBengaliNumber(hijriDate.day)} ${hijriDate.month.en === 'Ramadan' ? 'রমজান' : hijriDate.month.en}` : '...'}</h2>
-                   <p className="text-sm opacity-90 mt-1">
-                     {currentTime.toLocaleDateString('bn-BD', { weekday: 'long' })}, {toBengaliNumber(currentTime.getDate())} {currentTime.toLocaleDateString('bn-BD', { month: 'long' })}
-                   </p>
-                   <p className="text-sm opacity-90">{bnDate.day} {bnDate.month}</p>
-                 </div>
-                 <div className="text-right">
-                    <div className="flex items-center justify-end gap-2 mb-1">
-                      <i className="fa-solid fa-sun text-yellow-300 text-2xl animate-pulse"></i>
-                      <div className="text-right">
-                        <p className="text-xl font-bold">{prayerData ? formatTime(prayerData.timings.Sunrise) : '--:--'}</p>
-                        <p className="text-xs opacity-80">সূর্যোদয়</p>
-                      </div>
-                      <div className="text-right ml-2">
-                        <p className="text-xl font-bold">{prayerData ? formatTime(prayerData.timings.Sunset) : '--:--'}</p>
-                        <p className="text-xs opacity-80">সূর্যাস্ত</p>
-                      </div>
-                    </div>
-                 </div>
-               </div>
-               {/* Decorative circles */}
-               <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-               <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-            </div>
+            {(() => {
+              let bgImage = 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1000&auto=format&fit=crop'; // Default
+              let overlayColor = 'bg-emerald-900/40';
+
+              if (activePrayer === 'Fajr') {
+                // Fajr: Reddish sky (Dawn)
+                bgImage = 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-red-900/20';
+              } else if (activePrayer === 'Dhuhr') {
+                // Dhuhr: Bright sun (100-120 degree tilt concept - Bright Noon)
+                bgImage = 'https://images.unsplash.com/photo-1604816944034-317d703546aa?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-blue-500/10';
+              } else if (activePrayer === 'Asr') {
+                // Asr: Sun lower (160-180 degree tilt concept - Late Afternoon/Golden)
+                bgImage = 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-orange-900/20';
+              } else if (activePrayer === 'Maghrib') {
+                // Maghrib: Reddish Sunset
+                bgImage = 'https://images.unsplash.com/photo-1616036740227-6397f72ac3ad?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-red-900/30';
+              } else if (activePrayer === 'Isha') {
+                // Isha: Night sky with moon and stars (Dark Teal/Blue)
+                bgImage = 'https://images.unsplash.com/photo-1532978379173-523e16f371f2?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-slate-900/40';
+              }
+
+              return (
+                <div className={`rounded-2xl p-4 text-white shadow-lg relative overflow-hidden bg-cover bg-center transition-all duration-1000`} style={{ backgroundImage: `url('${bgImage}')` }}>
+                   <div className={`absolute inset-0 ${overlayColor} backdrop-blur-[0px]`}></div>
+                   <div className="relative z-10 flex justify-between items-center">
+                     <div className="space-y-1">
+                       <h2 className="text-2xl font-bold">{currentTime.toLocaleDateString('bn-BD', { weekday: 'long' })}</h2>
+                       <p className="text-lg font-medium opacity-90">
+                         {hijriDate ? `${toBengaliNumber(hijriDate.day)} ${hijriDate.month.en === 'Ramadan' ? 'রমজান' : hijriDate.month.en} ${toBengaliNumber(hijriDate.year)}` : '...'}
+                       </p>
+                       <p className="text-sm opacity-90">
+                         {toBengaliNumber(currentTime.getDate())} {currentTime.toLocaleDateString('bn-BD', { month: 'long' })}, {toBengaliNumber(currentTime.getFullYear())}
+                       </p>
+                       <p className="text-sm opacity-90">{bnDate.day} {bnDate.month}, {bnDate.year}</p>
+                     </div>
+                     <div className="text-right space-y-2">
+                        <p className="text-sm font-medium">{city}, Bangladesh</p>
+                        <div className="flex items-center justify-end gap-3">
+                          {activePrayer === 'Isha' ? (
+                             <i className="fa-solid fa-moon text-slate-200 text-3xl animate-pulse"></i>
+                          ) : (
+                             <i className="fa-solid fa-sun text-yellow-300 text-3xl animate-pulse"></i>
+                          )}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-0 text-center">
+                            <p className="text-xl font-bold">{prayerData ? formatTime(prayerData.timings.Sunrise) : '--:--'}</p>
+                            <p className="text-xl font-bold">{prayerData ? formatTime(prayerData.timings.Sunset) : '--:--'}</p>
+                            <p className="text-xs opacity-80">সূর্যোদয়</p>
+                            <p className="text-xs opacity-80">সূর্যাস্ত</p>
+                          </div>
+                        </div>
+                     </div>
+                   </div>
+                </div>
+              );
+            })()}
 
             {/* Prayer Times Card */}
             <div className="bg-slate-800 rounded-2xl p-4 shadow-lg border border-slate-700">
@@ -458,6 +491,16 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            {/* Beta Warning Notification */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center gap-3">
+              <div className="bg-amber-500/20 p-2 rounded-full flex-shrink-0">
+                <i className="fa-solid fa-triangle-exclamation text-amber-500 text-xl"></i>
+              </div>
+              <p className="text-sm text-amber-200 font-medium leading-relaxed">
+                এই App বেটা পর্যায়ে রয়েছে তাই কেউ নামাজ এর টাইম সেহরি ইফতারের টাইম ফলো করবেন না এখান থেকে
+              </p>
+            </div>
+
             {/* Sehri & Iftar Card */}
             <div className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative">
                <button className="absolute top-3 right-3 text-slate-400 hover:text-white">
@@ -482,30 +525,30 @@ const App: React.FC = () => {
             </div>
 
             {/* Forbidden Times Card */}
-            <div className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700">
-              <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-3">
-                <h2 className="text-xl font-bold text-slate-200">সালাতের নিষিদ্ধ সময়</h2>
-                <i className="fa-solid fa-circle-info text-slate-400"></i>
+            <div className="bg-rose-50 rounded-2xl p-4 shadow-sm border border-rose-100">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <i className="fa-solid fa-circle-exclamation text-rose-500 text-sm"></i>
+                <h2 className="text-lg font-bold text-slate-800">সালাতের নিষিদ্ধ সময়</h2>
               </div>
               
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-xl font-medium text-slate-300">সকাল:</span>
-                  <span className="text-xl font-bold text-slate-200 font-mono">
+              <div className="flex justify-between items-center text-center divide-x divide-rose-200">
+                <div className="flex-1 px-2">
+                  <p className="text-sm font-medium text-slate-600 mb-1">ভোর</p>
+                  <p className="text-lg font-bold text-slate-800 font-mono leading-none">
                     {prayerData ? `${formatTime(prayerData.timings.Sunrise)} - ${formatTime(adjustTime(prayerData.timings.Sunrise, 15))}` : '--:--'}
-                  </span>
+                  </p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xl font-medium text-slate-300">দুপুর:</span>
-                  <span className="text-xl font-bold text-slate-200 font-mono">
+                <div className="flex-1 px-2">
+                  <p className="text-sm font-medium text-slate-600 mb-1">দুপুর</p>
+                  <p className="text-lg font-bold text-slate-800 font-mono leading-none">
                      {prayerData ? `${formatTime(adjustTime(prayerData.timings.Dhuhr, -7))} - ${formatTime(adjustTime(prayerData.timings.Dhuhr, -1))}` : '--:--'}
-                  </span>
+                  </p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xl font-medium text-slate-300">সন্ধ্যা:</span>
-                  <span className="text-xl font-bold text-slate-200 font-mono">
+                <div className="flex-1 px-2">
+                  <p className="text-sm font-medium text-slate-600 mb-1">সন্ধ্যা</p>
+                  <p className="text-lg font-bold text-slate-800 font-mono leading-none">
                      {prayerData ? `${formatTime(adjustTime(prayerData.timings.Sunset, -16))} - ${formatTime(prayerData.timings.Sunset)}` : '--:--'}
-                  </span>
+                  </p>
                 </div>
               </div>
             </div>
