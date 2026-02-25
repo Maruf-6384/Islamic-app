@@ -82,5 +82,6 @@ export enum AppSection {
   RAMADAN = 'ramadan',
   QURAN = 'quran',
   DUA = 'dua',
-  SETTINGS = 'settings'
+  SETTINGS = 'settings',
+  TASBIH = 'tasbih'
 }

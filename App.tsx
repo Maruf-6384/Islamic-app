@@ -94,6 +94,52 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
+  // Tasbih State
+  const [tasbihCount, setTasbihCount] = useState<number>(0);
+  const [tasbihTarget, setTasbihTarget] = useState<number>(100);
+  const [activeTasbih, setActiveTasbih] = useState<string>('সুবহানাল্লাহ');
+  const [customTargetInput, setCustomTargetInput] = useState<string>('100');
+  const [showTargetModal, setShowTargetModal] = useState<boolean>(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+
+  const tasbihOptions = [
+    { name: 'সুবহানাল্লাহ', defaultTarget: 100 },
+    { name: 'আলহামদুলিল্লাহ', defaultTarget: 100 },
+    { name: 'আল্লাহু আকবার', defaultTarget: 100 },
+    { name: 'লা ইলাহা ইল্লাল্লাহ', defaultTarget: 100 },
+    { name: 'আস্তাগফিরুল্লাহ', defaultTarget: 100 },
+    { name: 'দরুদে ইব্রাহিম', defaultTarget: 100 },
+  ];
+
+  const handleTasbihClick = () => {
+    const newCount = tasbihCount + 1;
+    setTasbihCount(newCount);
+    
+    // Vibrate on tap (short)
+    if (navigator.vibrate) {
+      navigator.vibrate(30);
+    }
+
+    // Alarm/Vibrate on target (long)
+    if (newCount === tasbihTarget) {
+      if (navigator.vibrate) {
+        // Distinct pattern: Long, pause, Long
+        navigator.vibrate([500, 200, 500]);
+      }
+      // Visual feedback is handled in UI, removed alert to prevent interruption
+    }
+  };
+
+  const resetTasbih = () => {
+    setTasbihCount(0);
+  };
+
+  const selectTasbih = (name: string, target: number) => {
+    setActiveTasbih(name);
+    setTasbihTarget(target);
+    setTasbihCount(0);
+  };
+
   const [showMoreSalah, setShowMoreSalah] = useState(false);
   const [quranExpanded, setQuranExpanded] = useState(false);
   const [checklistExpanded, setChecklistExpanded] = useState(false);
@@ -166,7 +212,7 @@ const App: React.FC = () => {
   const fetchPrayerTimes = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=${city}&country=Bangladesh&method=2`);
+      const response = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=${city}&country=Bangladesh&method=1`);
       const data = await response.json();
       if (data.code === 200) {
         setPrayerData(data.data);
@@ -237,7 +283,7 @@ const App: React.FC = () => {
        const dhuhr = timeToMinutes(timings.Dhuhr);
        
        if (currentMinutes >= sunrise && currentMinutes < dhuhr) {
-         active = { name: 'Ishraq', start: timings.Sunrise, end: timings.Dhuhr };
+         active = { name: 'Ishraq/Doha', start: timings.Sunrise, end: timings.Dhuhr };
          next = prayers[1]; // Dhuhr
          remainingSeconds = (dhuhr * 60) - (currentMinutes * 60 + now.getSeconds());
          totalDuration = (dhuhr - sunrise) * 60;
@@ -382,31 +428,76 @@ const App: React.FC = () => {
             {(() => {
               let bgImage = 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1000&auto=format&fit=crop'; // Default
               let overlayColor = 'bg-emerald-900/40';
+              let isForbiddenTime = false;
 
-              if (activePrayer === 'Fajr') {
-                // Fajr: Reddish sky (Dawn)
-                bgImage = 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=1000&auto=format&fit=crop'; 
-                overlayColor = 'bg-red-900/20';
-              } else if (activePrayer === 'Dhuhr') {
-                // Dhuhr: Bright sun (100-120 degree tilt concept - Bright Noon)
-                bgImage = 'https://images.unsplash.com/photo-1604816944034-317d703546aa?q=80&w=1000&auto=format&fit=crop'; 
-                overlayColor = 'bg-blue-500/10';
-              } else if (activePrayer === 'Asr') {
-                // Asr: Sun lower (160-180 degree tilt concept - Late Afternoon/Golden)
-                bgImage = 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1000&auto=format&fit=crop'; 
-                overlayColor = 'bg-orange-900/20';
-              } else if (activePrayer === 'Maghrib') {
-                // Maghrib: Reddish Sunset
-                bgImage = 'https://images.unsplash.com/photo-1616036740227-6397f72ac3ad?q=80&w=1000&auto=format&fit=crop'; 
+              // Check for forbidden times
+              if (prayerData) {
+                 const now = new Date();
+                 const sunrise = prayerData.timings.Sunrise;
+                 const dhuhr = prayerData.timings.Dhuhr;
+                 const sunset = prayerData.timings.Sunset;
+
+                 const getMinutes = (timeStr: string) => {
+                   const [h, m] = timeStr.split(':').map(Number);
+                   return h * 60 + m;
+                 };
+
+                 const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                 
+                 // Calculate end times for forbidden periods
+                 // Sunrise forbidden: Sunrise to Sunrise + 15min
+                 const sunriseStartMin = getMinutes(sunrise);
+                 const sunriseEndMin = sunriseStartMin + 15;
+
+                 // Dhuhr forbidden: Dhuhr - 7min to Dhuhr - 1min
+                 const dhuhrStartMin = getMinutes(dhuhr) - 7;
+                 const dhuhrEndMin = getMinutes(dhuhr) - 1;
+
+                 // Sunset forbidden: Sunset - 16min to Sunset
+                 const sunsetStartMin = getMinutes(sunset) - 16;
+                 const sunsetEndMin = getMinutes(sunset);
+
+                 if (
+                   (currentMinutes >= sunriseStartMin && currentMinutes <= sunriseEndMin) ||
+                   (currentMinutes >= dhuhrStartMin && currentMinutes <= dhuhrEndMin) ||
+                   (currentMinutes >= sunsetStartMin && currentMinutes <= sunsetEndMin)
+                 ) {
+                   isForbiddenTime = true;
+                 }
+              }
+
+              if (isForbiddenTime) {
+                 // Forbidden Time: Red Background (Gradient)
+                 bgImage = ''; 
+                 overlayColor = 'bg-gradient-to-r from-red-600 to-red-900';
+              } else if (activePrayer === 'Fajr') {
+                // Fajr: Distinct Reddish dawn sky
+                bgImage = 'https://images.unsplash.com/photo-1600456567530-02213d223847?q=80&w=1000&auto=format&fit=crop'; 
                 overlayColor = 'bg-red-900/30';
+              } else if (activePrayer === 'Sunrise' || activePrayer === 'Ishraq' || activePrayer === 'Ishraq/Doha') {
+                 // Ishraq/Doha: Bright morning sky
+                 bgImage = 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=1000&auto=format&fit=crop';
+                 overlayColor = 'bg-orange-400/10'; 
+              } else if (activePrayer === 'Dhuhr') {
+                // Dhuhr: Bright sun slightly tilted west (110-120 degrees)
+                bgImage = 'https://images.unsplash.com/photo-1533378936506-6a72e4bc9e84?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-blue-600/10';
+              } else if (activePrayer === 'Asr') {
+                // Asr: Reddish Sunset (Swapped from Maghrib)
+                bgImage = 'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-red-900/30';
+              } else if (activePrayer === 'Maghrib') {
+                // Maghrib: Sun tilted 160-180 degrees (Swapped from Asr)
+                bgImage = 'https://images.unsplash.com/photo-1472120435266-53107fd0c44a?q=80&w=1000&auto=format&fit=crop'; 
+                overlayColor = 'bg-orange-600/20';
               } else if (activePrayer === 'Isha') {
-                // Isha: Night sky with moon and stars (Dark Teal/Blue)
-                bgImage = 'https://images.unsplash.com/photo-1532978379173-523e16f371f2?q=80&w=1000&auto=format&fit=crop'; 
+                // Isha: Night sky with moon and stars
+                bgImage = 'https://images.unsplash.com/photo-1509773896068-7fd415d91e2e?q=80&w=1000&auto=format&fit=crop'; 
                 overlayColor = 'bg-slate-900/40';
               }
 
               return (
-                <div className={`rounded-2xl p-4 text-white shadow-lg relative overflow-hidden bg-cover bg-center transition-all duration-1000`} style={{ backgroundImage: `url('${bgImage}')` }}>
+                <div className={`rounded-2xl p-4 text-white shadow-lg relative overflow-hidden bg-cover bg-center transition-all duration-1000 bg-slate-800 ${isForbiddenTime ? 'bg-red-600' : ''}`} style={{ backgroundImage: isForbiddenTime ? 'none' : `url('${bgImage}')` }}>
                    <div className={`absolute inset-0 ${overlayColor} backdrop-blur-[0px]`}></div>
                    <div className="relative z-10 flex justify-between items-center">
                      <div className="space-y-1">
@@ -525,28 +616,28 @@ const App: React.FC = () => {
             </div>
 
             {/* Forbidden Times Card */}
-            <div className="bg-rose-50 rounded-2xl p-4 shadow-sm border border-rose-100">
+            <div className="bg-red-50 rounded-2xl p-4 shadow-sm border border-red-200">
               <div className="flex items-center justify-center gap-2 mb-4">
-                <i className="fa-solid fa-circle-exclamation text-rose-500 text-sm"></i>
-                <h2 className="text-lg font-bold text-slate-800">সালাতের নিষিদ্ধ সময়</h2>
+                <i className="fa-solid fa-circle-exclamation text-red-600 text-sm animate-pulse"></i>
+                <h2 className="text-lg font-bold text-red-900">সালাতের নিষিদ্ধ সময়</h2>
               </div>
               
-              <div className="flex justify-between items-center text-center divide-x divide-rose-200">
+              <div className="flex justify-between items-center text-center divide-x divide-red-200">
                 <div className="flex-1 px-2">
-                  <p className="text-sm font-medium text-slate-600 mb-1">ভোর</p>
-                  <p className="text-lg font-bold text-slate-800 font-mono leading-none">
+                  <p className="text-sm font-medium text-red-700 mb-1">ভোর</p>
+                  <p className="text-lg font-bold text-red-900 font-mono leading-none">
                     {prayerData ? `${formatTime(prayerData.timings.Sunrise)} - ${formatTime(adjustTime(prayerData.timings.Sunrise, 15))}` : '--:--'}
                   </p>
                 </div>
                 <div className="flex-1 px-2">
-                  <p className="text-sm font-medium text-slate-600 mb-1">দুপুর</p>
-                  <p className="text-lg font-bold text-slate-800 font-mono leading-none">
+                  <p className="text-sm font-medium text-red-700 mb-1">দুপুর</p>
+                  <p className="text-lg font-bold text-red-900 font-mono leading-none">
                      {prayerData ? `${formatTime(adjustTime(prayerData.timings.Dhuhr, -7))} - ${formatTime(adjustTime(prayerData.timings.Dhuhr, -1))}` : '--:--'}
                   </p>
                 </div>
                 <div className="flex-1 px-2">
-                  <p className="text-sm font-medium text-slate-600 mb-1">সন্ধ্যা</p>
-                  <p className="text-lg font-bold text-slate-800 font-mono leading-none">
+                  <p className="text-sm font-medium text-red-700 mb-1">সন্ধ্যা</p>
+                  <p className="text-lg font-bold text-red-900 font-mono leading-none">
                      {prayerData ? `${formatTime(adjustTime(prayerData.timings.Sunset, -16))} - ${formatTime(prayerData.timings.Sunset)}` : '--:--'}
                   </p>
                 </div>
@@ -813,6 +904,172 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {activeSection === AppSection.TASBIH && (
+          <div 
+            className="animate-fade-in h-full flex flex-col relative bg-[#0f172a]"
+            onClick={handleTasbihClick}
+          >
+            {/* Header Area */}
+            <div className="pt-8 px-6 z-20" onClick={(e) => e.stopPropagation()}>
+              <h1 className="text-3xl font-bold text-white mb-6">তাসবিহ</h1>
+              
+              {/* Dropdown Selector */}
+              <div className="relative">
+                <button 
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="w-full bg-slate-800 border border-emerald-500 rounded-lg px-4 py-3 flex items-center justify-between text-white font-medium shadow-sm active:scale-[0.99] transition-transform"
+                >
+                  <span className="text-lg">{activeTasbih}</span>
+                  <div className="flex items-center gap-3">
+                    {/* Target Indicator/Edit inside dropdown bar */}
+                    <div 
+                      className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 flex items-center gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCustomTargetInput(tasbihTarget.toString());
+                        setShowTargetModal(true);
+                      }}
+                    >
+                      <span>{toBengaliNumber(tasbihTarget)}</span>
+                      <i className="fa-solid fa-pen text-[10px]"></i>
+                    </div>
+                    <i className={`fa-solid fa-chevron-down transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}></i>
+                  </div>
+                </button>
+
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-30 animate-fade-in">
+                    {tasbihOptions.map((opt) => (
+                      <button
+                        key={opt.name}
+                        onClick={() => {
+                          selectTasbih(opt.name, opt.defaultTarget);
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-700 transition-colors flex justify-between items-center ${activeTasbih === opt.name ? 'text-emerald-500 bg-slate-700/30' : 'text-slate-300'}`}
+                      >
+                        <span>{opt.name}</span>
+                        {activeTasbih === opt.name && <i className="fa-solid fa-check text-sm"></i>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Main Counter Area - Centered */}
+            <div className="flex-1 flex flex-col items-center justify-center relative -mt-8">
+               
+               {/* Counter Circle */}
+               <div className="w-72 h-72 rounded-full relative flex flex-col items-center justify-center select-none z-10">
+                 {/* Outer Glow/Border */}
+                 <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
+                 
+                 {/* Progress Ring */}
+                 <svg className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-2xl">
+                   {/* Track */}
+                   <circle
+                     cx="144" cy="144" r="130"
+                     stroke="#1e293b" 
+                     strokeWidth="8"
+                     fill="#1e293b" 
+                     fillOpacity="0.5"
+                   />
+                   {/* Progress */}
+                   <circle
+                     cx="144" cy="144" r="130"
+                     stroke="#10b981" 
+                     strokeWidth="8"
+                     fill="transparent"
+                     strokeDasharray={2 * Math.PI * 130}
+                     strokeDashoffset={2 * Math.PI * 130 * (1 - Math.min(tasbihCount / tasbihTarget, 1))}
+                     strokeLinecap="round"
+                     className="transition-all duration-300 ease-out"
+                   />
+                 </svg>
+
+                 {/* Inner Content */}
+                 <div className="flex flex-col items-center z-10 relative">
+                   <h3 className="text-slate-400 text-lg font-medium mb-2">{activeTasbih}</h3>
+                   <h1 className="text-8xl font-bold text-white font-mono tracking-tighter drop-shadow-lg">
+                     {toBengaliNumber(tasbihCount)}
+                   </h1>
+                   <p className="text-slate-500 text-sm mt-4">স্ক্রিনে ট্যাপ করুন</p>
+                 </div>
+               </div>
+
+               {/* Reset Button */}
+               <button 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   resetTasbih();
+                 }}
+                 className="mt-16 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-2 px-6 py-3 rounded-full border border-slate-700 z-10 shadow-lg"
+               >
+                 <i className="fa-solid fa-rotate-right"></i>
+                 <span className="font-medium">রিসেট করুন</span>
+               </button>
+            </div>
+
+            {/* Target Reached Overlay */}
+            {tasbihCount === tasbihTarget && (
+               <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none backdrop-blur-[2px]">
+                  <div className="bg-emerald-600 text-white px-8 py-6 rounded-3xl font-bold animate-bounce shadow-2xl flex flex-col items-center gap-3 border-4 border-emerald-400/30">
+                    <div className="bg-white/20 p-3 rounded-full">
+                      <i className="fa-solid fa-check text-2xl"></i>
+                    </div>
+                    <span className="text-lg">আলহামদুলিল্লাহ!</span>
+                    <span className="text-sm font-normal opacity-90">টার্গেট পূর্ণ হয়েছে</span>
+                  </div>
+               </div>
+            )}
+
+            {/* Custom Target Modal */}
+            {showTargetModal && (
+              <div 
+                className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-slate-900 p-6 rounded-3xl w-full max-w-xs border border-slate-800 shadow-2xl">
+                  <h3 className="text-white font-bold text-lg mb-6 text-center">টার্গেট পরিবর্তন করুন</h3>
+                  <div className="relative mb-6">
+                    <input
+                      type="number"
+                      value={customTargetInput}
+                      onChange={(e) => setCustomTargetInput(e.target.value)}
+                      className="w-full p-4 bg-slate-800 border-2 border-slate-700 rounded-2xl text-white text-center text-3xl font-mono focus:border-emerald-500 outline-none transition-colors"
+                      autoFocus
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">বার</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => setShowTargetModal(false)}
+                      className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition-colors"
+                    >
+                      বাতিল
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const val = parseInt(customTargetInput);
+                        if (!isNaN(val) && val > 0) {
+                          setTasbihTarget(val);
+                          setTasbihCount(0);
+                          setShowTargetModal(false);
+                        }
+                      }}
+                      className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-900/20"
+                    >
+                      সেভ করুন
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeSection === AppSection.SETTINGS && (
           <div className="animate-fade-in p-4">
             <h2 className="text-xl font-bold text-white mb-4">সেটিংস</h2>
@@ -866,19 +1123,20 @@ const App: React.FC = () => {
           <i className="fa-solid fa-moon text-lg"></i>
           <span className="text-[10px] font-bold">রমাদান</span>
         </button>
-        <button 
-          onClick={() => setActiveSection(AppSection.QURAN)}
-          className={`flex flex-col items-center gap-1 transition-colors ${activeSection === AppSection.QURAN ? 'text-emerald-500' : 'text-slate-500'}`}
-        >
-          <i className="fa-solid fa-book-quran text-lg"></i>
-          <span className="text-[10px] font-bold">কুরআন</span>
-        </button>
+        {/* Quran Removed as per request */}
         <button 
           onClick={() => setActiveSection(AppSection.DUA)}
           className={`flex flex-col items-center gap-1 transition-colors ${activeSection === AppSection.DUA ? 'text-emerald-500' : 'text-slate-500'}`}
         >
           <i className="fa-solid fa-hands-praying text-lg"></i>
           <span className="text-[10px] font-bold">দোয়া</span>
+        </button>
+        <button 
+          onClick={() => setActiveSection(AppSection.TASBIH)}
+          className={`flex flex-col items-center gap-1 transition-colors ${activeSection === AppSection.TASBIH ? 'text-emerald-500' : 'text-slate-500'}`}
+        >
+          <i className="fa-solid fa-fingerprint text-lg"></i>
+          <span className="text-[10px] font-bold">তাসবিহ</span>
         </button>
         <button 
           onClick={() => setActiveSection(AppSection.SETTINGS)}
